@@ -1,0 +1,34 @@
+---
+- name: Create Kind Kubernetes Cluster
+  hosts: all
+  become: false
+
+  tasks:
+
+    - name: Copy kind configuration file
+      copy:
+        src: kind.yaml
+        dest: /tmp/kind.yaml
+
+    - name: Check existing Kind clusters
+      command: kind get clusters
+      register: cluster_list
+      failed_when: false
+      changed_when: false
+
+    - name: Create Kind cluster
+      command: kind create cluster --config=/tmp/kind.yaml
+      when: "'tws-cluster' not in cluster_list.stdout"
+
+    - name: Wait for nodes to become Ready
+      command: kubectl wait --for=condition=Ready nodes --all --timeout=180s
+      changed_when: false
+
+    - name: Get cluster nodes
+      command: kubectl get nodes -o wide
+      register: nodes
+      changed_when: false
+
+    - name: Show nodes
+      debug:
+        var: nodes.stdout_lines

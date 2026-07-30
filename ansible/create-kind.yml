@@ -1,0 +1,7 @@
+- name: Copy Kind configuration
+  copy:
+    src: kind.yaml
+    dest: /tmp/kind.yaml
+
+- name: Create Kind Cluster
+  command: kind create cluster --config=/tmp/kind.yaml

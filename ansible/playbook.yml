@@ -1,0 +1,147 @@
+---
+- name: Install Docker, Kind and kubectl
+  hosts: all
+  become: yes
+
+  vars:
+    kind_version: "v0.29.0"
+
+  tasks:
+
+    ####################################################
+    # Update Packages
+    ####################################################
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    ####################################################
+    # Install Docker
+    ####################################################
+
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+
+    - name: Start Docker service
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    ####################################################
+    # Detect Architecture
+    ####################################################
+
+    - name: Detect system architecture
+      command: uname -m
+      register: arch
+      changed_when: false
+
+    - name: Show architecture
+      debug:
+        msg: "{{ arch.stdout }}"
+
+    ####################################################
+    # Install Kind
+    ####################################################
+
+    - name: Download Kind (AMD64)
+      get_url:
+        url: "https://kind.sigs.k8s.io/dl/{{ kind_version }}/kind-linux-amd64"
+        dest: /usr/local/bin/kind
+        mode: '0755'
+      when: arch.stdout == "x86_64"
+
+    - name: Download Kind (ARM64)
+      get_url:
+        url: "https://kind.sigs.k8s.io/dl/{{ kind_version }}/kind-linux-arm64"
+        dest: /usr/local/bin/kind
+        mode: '0755'
+      when: arch.stdout == "aarch64"
+
+    ####################################################
+    # Install kubectl
+    ####################################################
+
+    - name: Get latest kubectl version
+      uri:
+        url: https://dl.k8s.io/release/stable.txt
+        return_content: yes
+      register: kubectl_release
+
+    - name: Show kubectl version
+      debug:
+        msg: "{{ kubectl_release.content | trim }}"
+
+    - name: Download kubectl (AMD64)
+      get_url:
+        url: "https://dl.k8s.io/release/{{ kubectl_release.content | trim }}/bin/linux/amd64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: '0755'
+        force: yes
+      when: arch.stdout == "x86_64"
+
+    - name: Download kubectl (ARM64)
+      get_url:
+        url: "https://dl.k8s.io/release/{{ kubectl_release.content | trim }}/bin/linux/arm64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: '0755'
+        force: yes
+      when: arch.stdout == "aarch64"
+
+    ####################################################
+    # Verify Downloaded Files
+    ####################################################
+
+    - name: Verify Kind binary
+      command: file /usr/local/bin/kind
+      register: kind_file
+      changed_when: false
+
+    - debug:
+        var: kind_file.stdout
+
+    - name: Verify kubectl binary
+      command: file /usr/local/bin/kubectl
+      register: kubectl_file
+      changed_when: false
+
+    - debug:
+        var: kubectl_file.stdout
+
+    ####################################################
+    # Show Versions
+    ####################################################
+
+    - name: Docker Version
+      command: docker --version
+      register: docker_version
+      changed_when: false
+
+    - debug:
+        var: docker_version.stdout
+
+    - name: Kind Version
+      command: kind --version
+      register: kind_version_output
+      changed_when: false
+
+    - debug:
+        var: kind_version_output.stdout
+
+    - name: Kubectl Version
+      command: kubectl version --client=true
+      register: kubectl_version_output
+      changed_when: false
+
+    - debug:
+        var: kubectl_version_output.stdout
