@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: dev
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: backend
+
+  template:
+    metadata:
+      labels:
+        app: backend
+
+    spec:
+      containers:
+      - name: backend
+        image: shahiddevops1/fitness-tracker-backend:latest
+        imagePullPolicy: Always
+
+        ports:
+        - containerPort: 5000
+
+        env:
+        - name: PORT
+          value: "5000"
+
+        - name: NODE_ENV
+          value: "production"
+
+        - name: CLIENT_URL
+          value: "http://frontend"
+
+        - name: JWT_EXPIRES_IN
+          value: "7d"
+
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: fitness-secret
+              key: JWT_SECRET
+
+        - name: MONGO_URI
+          valueFrom:
+            secretKeyRef:
+              name: fitness-secret
+              key: MONGO_URI
+
+        - name: SMTP_USER
+          valueFrom:
+            secretKeyRef:
+              name: fitness-secret
+              key: SMTP_USER
+
+        - name: SMTP_PASS
+          valueFrom:
+            secretKeyRef:
+              name: fitness-secret
+              key: SMTP_PASS
+
+        - name: ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: fitness-secret
+              key: ADMIN_PASSWORD

@@ -1,159 +1,337 @@
-# Pulse — Personal Fitness Tracker (MERN Stack)
+# 🚀 End-to-End DevOps Deployment of MERN Fitness Tracker on Kubernetes (KIND)
 
-A full-stack fitness tracking application: workouts, nutrition, weight, water,
-sleep, goals, progress reports, and an admin panel — built with MongoDB,
-Express, React, and Node.
+## 📌 Project Overview
 
-## Project Structure
+This project demonstrates a complete **End-to-End DevOps workflow** for deploying a **MERN Fitness Tracker** application on a Kubernetes cluster using modern DevOps tools and best practices.
+
+The infrastructure is provisioned on AWS using **Terraform**, configured automatically with **Ansible**, containerized with **Docker**, orchestrated using **Kubernetes (KIND)**, and automated through a **GitHub Actions CI/CD pipeline**.
+
+---
+
+# 🏗️ Architecture
 
 ```
-fitness-tracker/
-├── docker-compose.yml   Orchestrates mongo + backend + frontend
-├── .env.example          Docker Compose environment overrides
-├── backend/          Express + MongoDB REST API
-│   ├── Dockerfile
-│   ├── config/        DB connection
-│   ├── models/        Mongoose schemas (8 collections)
-│   ├── controllers/    Route handlers / business logic
-│   ├── routes/         Express routers
-│   ├── middleware/     Auth, validation, error handling, file upload
-│   ├── utils/           JWT, email, admin seed script
-│   └── server.js        App entry point
-└── frontend/          React (Vite) SPA
-    ├── Dockerfile        Multi-stage build, served via nginx
-    ├── nginx.conf         SPA routing + reverse proxy to backend
-    └── src/
-        ├── api/          Axios client + endpoint functions
-        ├── context/       Auth & theme (dark/light) providers
-        ├── components/    Reusable UI, layout, dashboard, chart components
-        ├── pages/         Feature pages (auth, dashboard, workouts, etc.)
-        └── routes/        Route guards (protected / admin / guest)
+GitHub Repository
+        │
+        ▼
+GitHub Actions (CI/CD)
+        │
+        ▼
+Docker Hub
+        │
+        ▼
+AWS EC2
+        │
+        ▼
+Terraform → Infrastructure Provisioning
+        │
+        ▼
+Ansible → Server Configuration
+        │
+        ▼
+Docker + KIND + kubectl
+        │
+        ▼
+Kubernetes Cluster
+        │
+ ┌──────────────┬──────────────┐
+ ▼              ▼              ▼
+Frontend     Backend       MongoDB
+Deployment   Deployment    Deployment
+      │           │
+      └──────┬────┘
+             ▼
+        Kubernetes Services
+             │
+             ▼
+        Kubernetes Ingress
 ```
 
-## Prerequisites
+---
 
-- Node.js 18+
-- A MongoDB instance (local `mongod`, or a free [MongoDB Atlas](https://www.mongodb.com/atlas) cluster)
+# 🛠 Technologies Used
 
-## 1. Backend Setup
+## Cloud
+
+* AWS EC2
+
+## Infrastructure as Code
+
+* Terraform
+
+## Configuration Management
+
+* Ansible
+
+## Containerization
+
+* Docker
+* Docker Hub
+
+## Container Orchestration
+
+* Kubernetes (KIND)
+
+## CI/CD
+
+* GitHub Actions
+
+## Application
+
+* MongoDB
+* Express.js
+* React.js
+* Node.js
+
+---
+
+# 📂 Project Structure
+
+```
+project/
+│
+├── terraform/
+│   ├── main.tf
+│   ├── provider.tf
+│   ├── variables.tf
+│   ├── outputs.tf
+│   ├── terraform.tfvars
+│   └── ssh key
+│
+├── ansible/
+│   ├── inventory.ini
+│   ├── playbook.yml
+│   └── roles/
+│
+├── kubernetes/
+│   ├── namespace.yaml
+│   ├── backend-deployment.yaml
+│   ├── backend-service.yaml
+│   ├── frontend-deployment.yaml
+│   ├── frontend-service.yaml
+│   ├── mongo-deployment.yaml
+│   ├── mongo-service.yaml
+│   ├── secret.yaml
+│   ├── configmap.yaml
+│   └── ingress.yaml
+│
+├── .github/
+│   └── workflows/
+│       └── ci-cd.yml
+│
+└── README.md
+```
+
+---
+
+# ⚙ Infrastructure Provisioning
+
+Terraform was used to provision the AWS infrastructure.
+
+### Resources Created
+
+* EC2 Instance
+* Security Group
+* SSH Key Pair
+
+Terraform commands:
 
 ```bash
-cd backend
-npm install
-cp .env.example .env
+terraform init
+terraform plan
+terraform apply
 ```
 
-Edit `.env`:
+---
 
-```
-PORT=5000
-MONGO_URI=mongodb://localhost:27017/fitness_tracker
-JWT_SECRET=replace_with_a_long_random_string
-JWT_EXPIRES_IN=7d
-CLIENT_URL=http://localhost:5173
-NODE_ENV=development
-```
+# ⚙ Configuration Management
 
-SMTP fields are optional — if left blank, "forgot password" emails are logged
-to the console (and returned in the API response in dev mode) instead of
-actually being sent, so the flow still works without email configured.
+Ansible automatically configured the EC2 instance by installing:
 
-Start the API:
+* Docker
+* kubectl
+* KIND
+* Git
+
+This eliminated manual server configuration.
+
+Run:
 
 ```bash
-npm run dev      # with nodemon (auto-restart)
-# or
-npm start
+ansible-playbook playbook.yml
 ```
 
-The API runs at `http://localhost:5000/api`. Health check: `GET /api/health`.
+---
 
-### Create an admin account
+# 🐳 Docker
+
+The application was containerized into separate Docker images.
+
+Images were pushed to Docker Hub automatically using GitHub Actions.
+
+---
+
+# ☸ Kubernetes Deployment
+
+The application was deployed inside a KIND Kubernetes cluster.
+
+Resources created:
+
+* Namespace
+* Deployments
+* Services
+* ConfigMap
+* Secret
+* Ingress
+
+Application components:
+
+* Frontend
+* Backend
+* MongoDB
+
+---
+
+# 🔐 Kubernetes Secret
+
+Sensitive application configuration is managed using Kubernetes Secrets.
+
+Examples:
+
+* JWT Secret
+* MongoDB URI
+* SMTP Credentials
+* Admin Password
+
+---
+
+# 🚀 CI/CD Pipeline
+
+GitHub Actions automates the deployment workflow.
+
+Pipeline Steps:
+
+1. Push code to GitHub
+2. Build Docker Images
+3. Push Images to Docker Hub
+4. Pull Latest Images
+5. Kubernetes Deployment Update
+
+---
+
+# 📦 Kubernetes Resources
+
+* Namespace
+* Deployment
+* Service
+* Secret
+* ConfigMap
+* Ingress
+
+---
+
+# 📋 Deployment Commands
 
 ```bash
-node utils/seedAdmin.js
+kubectl apply -f namespace.yaml
+
+kubectl apply -f mongo-deployment.yaml
+kubectl apply -f backend-deployment.yaml
+kubectl apply -f frontend-deployment.yaml
+
+kubectl apply -f mongo-service.yaml
+kubectl apply -f backend-service.yaml
+kubectl apply -f frontend-service.yaml
+
+kubectl apply -f ingress.yaml
 ```
 
-Creates `admin@fitnesstracker.com` / `Admin@123` (override via `ADMIN_EMAIL`
-/ `ADMIN_PASSWORD` env vars). Log in with this account to access `/admin`.
+---
 
-## 2. Frontend Setup
+# 📊 Verification Commands
 
 ```bash
-cd frontend
-npm install
-cp .env.example .env
-npm run dev
+kubectl get pods -n dev
+
+kubectl get svc -n dev
+
+kubectl get ingress -n dev
+
+kubectl get deployments -n dev
 ```
 
-The app runs at `http://localhost:5173` and expects the API at the URL set in
-`VITE_API_URL` (defaults to `http://localhost:5000/api`).
+---
 
-## Features
+# 🎯 DevOps Workflow
 
-- **Auth:** register, login, forgot/reset password, change password, JWT sessions
-- **Dashboard:** calories in/out, water, weight, BMI, daily fitness score, weekly charts
-- **Workouts:** full CRUD, category filter, search, pagination
-- **Diet Tracker:** meals by type, daily macro breakdown, nutrition summary
-- **Weight Tracking:** history, trend chart, goal progress %
-- **Water Intake:** quick-add, daily goal, 7-day history chart
-- **Sleep Tracking:** hours + quality, weekly report
-- **Goals:** weight loss/gain, muscle gain, maintain — with progress tracking
-- **Reports:** weekly/monthly workout stats, calories, weight, and goal reports
-- **Admin Panel:** system stats, user search, block/unblock, delete
-- **UI:** responsive sidebar layout, dark/light mode, toast notifications,
-  loading states, empty states, confirm dialogs
-
-## Notes on Notifications
-
-In-app notifications (goal achievement, etc.) are stored and shown in the
-bell menu in the top bar. Scheduled push/email reminders (daily workout,
-water reminders) are represented via the `notificationPrefs` fields on the
-user profile as a foundation — wiring them to a real push/cron/email service
-is straightforward to add on top of the existing `Notification` model and
-`sendEmail` util, but is infrastructure-dependent (e.g. a job scheduler or
-push provider) so it's left as the next step for a production deployment.
-
-## Running with Docker
-
-The project includes a `Dockerfile` for each service plus a root
-`docker-compose.yml` that runs the whole stack: MongoDB, the API, and the
-frontend (built and served via nginx, which also reverse-proxies `/api` and
-`/uploads` to the backend so the SPA and API share one origin).
-
-```bash
-cp .env.example .env   # optional — override JWT secret, SMTP, admin seed creds
-docker compose up --build
+```
+Developer
+     │
+     ▼
+GitHub Push
+     │
+     ▼
+GitHub Actions
+     │
+     ▼
+Build Docker Images
+     │
+     ▼
+Push Images to Docker Hub
+     │
+     ▼
+AWS EC2
+     │
+     ▼
+KIND Kubernetes Cluster
+     │
+     ▼
+Deploy MERN Application
 ```
 
-- Frontend: http://localhost:8080
-- Backend API directly: http://localhost:5000/api
-- MongoDB: exposed on localhost:27017 if you want to connect with a GUI
+---
 
-Create an admin account inside the running backend container:
+# 📚 Skills Demonstrated
 
-```bash
-docker compose exec backend node utils/seedAdmin.js
-```
+* AWS Cloud
+* Terraform
+* Ansible
+* Docker
+* Docker Hub
+* GitHub Actions
+* Kubernetes
+* KIND
+* Kubernetes Secrets
+* ConfigMaps
+* Ingress
+* MERN Stack Deployment
+* Infrastructure as Code
+* Configuration Management
+* Continuous Integration
+* Continuous Deployment
 
-Data persists across restarts via named volumes: `mongo_data` (database) and
-`backend_uploads` (profile pictures). To stop and remove containers (keeping
-data): `docker compose down`. To also wipe data: `docker compose down -v`.
+---
 
-### Building/running a single service
+# 📌 Future Improvements
 
-```bash
-docker build -t fitness-tracker-backend ./backend
-docker build -t fitness-tracker-frontend ./frontend
-```
+* Deploy on Amazon EKS
+* Use AWS Application Load Balancer (ALB)
+* Route 53 Integration
+* TLS with Cert-Manager
+* Prometheus Monitoring
+* Grafana Dashboards
+* Horizontal Pod Autoscaler (HPA)
+* External Secrets with AWS Secrets Manager
+* Argo CD (GitOps)
 
-The frontend image bakes `VITE_API_URL`/`VITE_API_ORIGIN` in at build time
-(see `frontend/Dockerfile` build args) since Vite env vars are compiled into
-the static bundle — pass `--build-arg VITE_API_URL=https://your-api.com/api`
-if you're not using the bundled nginx proxy.
+---
 
-## Tech Stack
+# 👨‍💻 Author
 
-Frontend: React 19, React Router, Tailwind CSS, Recharts, Axios, react-hot-toast, lucide-react
-Backend: Express, Mongoose, JWT, bcryptjs, express-validator, multer, nodemailer
-# fitness-tracker-k8s-kind
+**Muhammad Shahid**
+
+DevOps & Cloud Engineer
+
+GitHub: *Add your GitHub profile*
+
+LinkedIn: *Add your LinkedIn profile*

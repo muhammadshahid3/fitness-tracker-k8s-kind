@@ -1,0 +1,120 @@
+---
+- name: Install Prometheus
+  hosts: all
+  become: yes
+
+  vars:
+    prometheus_version: "3.5.0"
+
+  tasks:
+
+    - name: Create prometheus user
+      user:
+        name: prometheus
+        system: yes
+        shell: /usr/sbin/nologin
+        create_home: no
+
+    - name: Create Prometheus directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: prometheus
+        group: prometheus
+        mode: '0755'
+      loop:
+        - /etc/prometheus
+        - /var/lib/prometheus
+
+    - name: Download Prometheus
+      get_url:
+        url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
+        dest: /tmp/prometheus.tar.gz
+
+    - name: Extract Prometheus
+      unarchive:
+        src: /tmp/prometheus.tar.gz
+        dest: /tmp
+        remote_src: yes
+
+    - name: Copy prometheus binary
+      copy:
+        src: "/tmp/prometheus-{{ prometheus_version }}.linux-amd64/prometheus"
+        dest: /usr/local/bin/prometheus
+        remote_src: yes
+        mode: '0755'
+
+    - name: Copy promtool binary
+      copy:
+        src: "/tmp/prometheus-{{ prometheus_version }}.linux-amd64/promtool"
+        dest: /usr/local/bin/promtool
+        remote_src: yes
+        mode: '0755'
+
+    - name: Create prometheus configuration
+      copy:
+        dest: /etc/prometheus/prometheus.yml
+        owner: prometheus
+        group: prometheus
+        mode: '0644'
+        content: |
+          global:
+            scrape_interval: 15s
+
+          scrape_configs:
+            - job_name: "prometheus"
+              static_configs:
+                - targets:
+                    - "localhost:9090"
+
+            - job_name: "node_exporter"
+              static_configs:
+                - targets:
+                    - "localhost:9100"
+
+    - name: Set ownership
+      file:
+        path: "{{ item }}"
+        owner: prometheus
+        group: prometheus
+        recurse: yes
+      loop:
+        - /etc/prometheus
+        - /var/lib/prometheus
+
+    - name: Create systemd service
+      copy:
+        dest: /etc/systemd/system/prometheus.service
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=Prometheus
+          Wants=network-online.target
+          After=network-online.target
+
+          [Service]
+          User=prometheus
+          Group=prometheus
+          Type=simple
+          ExecStart=/usr/local/bin/prometheus \
+            --config.file=/etc/prometheus/prometheus.yml \
+            --storage.tsdb.path=/var/lib/prometheus
+
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable Prometheus
+      systemd:
+        name: prometheus
+        enabled: yes
+
+    - name: Start Prometheus
+      systemd:
+        name: prometheus
+        state: started
