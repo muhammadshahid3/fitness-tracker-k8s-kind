@@ -1,337 +1,243 @@
-# 🚀 End-to-End DevOps Deployment of MERN Fitness Tracker on Kubernetes (KIND)
+# Pulse — Fitness Tracker (MERN Stack) — Deployment Guide
 
-## 📌 Project Overview
-
-This project demonstrates a complete **End-to-End DevOps workflow** for deploying a **MERN Fitness Tracker** application on a Kubernetes cluster using modern DevOps tools and best practices.
-
-The infrastructure is provisioned on AWS using **Terraform**, configured automatically with **Ansible**, containerized with **Docker**, orchestrated using **Kubernetes (KIND)**, and automated through a **GitHub Actions CI/CD pipeline**.
-
----
-
-# 🏗️ Architecture
-
-```
-GitHub Repository
-        │
-        ▼
-GitHub Actions (CI/CD)
-        │
-        ▼
-Docker Hub
-        │
-        ▼
-AWS EC2
-        │
-        ▼
-Terraform → Infrastructure Provisioning
-        │
-        ▼
-Ansible → Server Configuration
-        │
-        ▼
-Docker + KIND + kubectl
-        │
-        ▼
-Kubernetes Cluster
-        │
- ┌──────────────┬──────────────┐
- ▼              ▼              ▼
-Frontend     Backend       MongoDB
-Deployment   Deployment    Deployment
-      │           │
-      └──────┬────┘
-             ▼
-        Kubernetes Services
-             │
-             ▼
-        Kubernetes Ingress
-```
+Ye README isliye likha gaya hai taake pura deployment flow samajh aaye —
+pehle **Terraform** se AWS EC2 infra banaya, phir usi infra ko **Ansible**
+se configure kiya, phir EC2 per **Kind (Kubernetes in Docker)** install
+kiya, aur phir uss cluster per app ka **Kubernetes deployment** kiya.
 
 ---
 
-# 🛠 Technologies Used
+## Project Overview
 
-## Cloud
+Pulse ek full-stack fitness tracking app hai (MongoDB + Express + React +
+Node). Iska deployment 4 stages mein hota hai:
 
-* AWS EC2
-
-## Infrastructure as Code
-
-* Terraform
-
-## Configuration Management
-
-* Ansible
-
-## Containerization
-
-* Docker
-* Docker Hub
-
-## Container Orchestration
-
-* Kubernetes (KIND)
-
-## CI/CD
-
-* GitHub Actions
-
-## Application
-
-* MongoDB
-* Express.js
-* React.js
-* Node.js
+1. Terraform → Infra (EC2 instance) banana
+2. Ansible → Uss EC2 ko configure karna (Docker, Kind, kubectl install)
+3. Kind → EC2 ke andar hi ek Kubernetes cluster banana
+4. Kubectl (K8s manifests) → App ko cluster per deploy karna + monitoring setup
 
 ---
 
-# 📂 Project Structure
+## Stage 1 — Terraform se Infra Banana
+
+Sab se pehle Terraform ka use karke AWS per infra (EC2 instance + security
+group + key pair) throw kiya gaya hai. Ye sab `terraform/` folder mein hai:
 
 ```
-project/
-│
-├── terraform/
-│   ├── main.tf
-│   ├── provider.tf
-│   ├── variables.tf
-│   ├── outputs.tf
-│   ├── terraform.tfvars
-│   └── ssh key
-│
-├── ansible/
-│   ├── inventory.ini
-│   ├── playbook.yml
-│   └── roles/
-│
-├── kubernetes/
-│   ├── namespace.yaml
-│   ├── backend-deployment.yaml
-│   ├── backend-service.yaml
-│   ├── frontend-deployment.yaml
-│   ├── frontend-service.yaml
-│   ├── mongo-deployment.yaml
-│   ├── mongo-service.yaml
-│   ├── secret.yaml
-│   ├── configmap.yaml
-│   └── ingress.yaml
-│
-├── .github/
-│   └── workflows/
-│       └── ci-cd.yml
-│
-└── README.md
+terraform/
+├── providers.tf     # AWS provider + region (ap-south-1)
+├── ec2.tf           # EC2 instance, security group, key pair
+└── outputs.tf       # EC2 public/private IP output
 ```
 
----
+`ec2.tf` mein ye resources define hain:
 
-# ⚙ Infrastructure Provisioning
+- `aws_default_vpc` — default VPC use hoti hai
+- `aws_key_pair` — SSH key (`terrakey.pub`) EC2 per attach hoti hai
+- `aws_security_group` — sirf SSH (port 22) allow hai
+- `aws_instance` — `t3.xlarge` instance, 20GB gp3 root volume
 
-Terraform was used to provision the AWS infrastructure.
-
-### Resources Created
-
-* EC2 Instance
-* Security Group
-* SSH Key Pair
-
-Terraform commands:
+### Terraform Commands
 
 ```bash
+cd terraform
+
+# Terraform ko initialize karna (provider download karega)
 terraform init
+
+# Pehle dekh lo kya banega
 terraform plan
-terraform apply
+
+# Ab actual infra create karo
+terraform apply -auto-approve
+
+# Output mein EC2 ka public IP milega
+terraform output
 ```
 
+Iske baad AWS per ek EC2 instance ready ho jata hai jisko hum next stage
+mein configure karenge.
+
 ---
 
-# ⚙ Configuration Management
+## Stage 2 — Ansible se Infra Configure Karna
 
-Ansible automatically configured the EC2 instance by installing:
+Terraform se jo EC2 bana, usi ko ab **Ansible** ke through configure kiya
+gaya hai. Sab kuch `ansible/` folder mein hai:
 
-* Docker
-* kubectl
-* KIND
-* Git
-
-This eliminated manual server configuration.
-
-Run:
-
-```bash
-ansible-playbook playbook.yml
+```
+ansible/
+├── ansible.conf        # inventory + SSH key config
+├── hosts.yml            # EC2 ka IP + SSH user (ubuntu)
+├── playbook.yml         # Docker, Kind, kubectl install
+├── kind.yml              # Kind cluster create karna
+├── create-kind.yml       # Kind config file copy karna
+├── node_exporter.yml     # Monitoring: Node Exporter install
+├── prometheus.yml        # Monitoring: Prometheus install
+└── grafana.yml           # Monitoring: Grafana install
 ```
 
----
+`hosts.yml` mein Terraform wala EC2 public IP daala jata hai, aur
+`terrakey` (Terraform se banai gayi SSH key) use hoti hai connect karne ke
+liye.
 
-# 🐳 Docker
-
-The application was containerized into separate Docker images.
-
-Images were pushed to Docker Hub automatically using GitHub Actions.
-
----
-
-# ☸ Kubernetes Deployment
-
-The application was deployed inside a KIND Kubernetes cluster.
-
-Resources created:
-
-* Namespace
-* Deployments
-* Services
-* ConfigMap
-* Secret
-* Ingress
-
-Application components:
-
-* Frontend
-* Backend
-* MongoDB
-
----
-
-# 🔐 Kubernetes Secret
-
-Sensitive application configuration is managed using Kubernetes Secrets.
-
-Examples:
-
-* JWT Secret
-* MongoDB URI
-* SMTP Credentials
-* Admin Password
-
----
-
-# 🚀 CI/CD Pipeline
-
-GitHub Actions automates the deployment workflow.
-
-Pipeline Steps:
-
-1. Push code to GitHub
-2. Build Docker Images
-3. Push Images to Docker Hub
-4. Pull Latest Images
-5. Kubernetes Deployment Update
-
----
-
-# 📦 Kubernetes Resources
-
-* Namespace
-* Deployment
-* Service
-* Secret
-* ConfigMap
-* Ingress
-
----
-
-# 📋 Deployment Commands
+### Ansible Commands
 
 ```bash
+cd ansible
+
+# Connectivity test
+ansible -i hosts.yml all -m ping
+
+# Docker + Kind + kubectl install karna EC2 per
+ansible-playbook -i hosts.yml playbook.yml
+
+# Monitoring stack install karna (optional)
+ansible-playbook -i hosts.yml node_exporter.yml
+ansible-playbook -i hosts.yml prometheus.yml
+ansible-playbook -i hosts.yml grafana.yml
+```
+
+`playbook.yml` ye kaam karta hai:
+
+- apt cache update
+- Docker install + start + `ubuntu` user ko docker group mein add
+- System architecture detect karna (amd64/arm64)
+- Kind binary download karna (`/usr/local/bin/kind`)
+- Latest kubectl download karna (`/usr/local/bin/kubectl`)
+- Docker, Kind, kubectl versions verify karna
+
+---
+
+## Stage 3 — Kind Se Kubernetes Install Karna (EC2 Per)
+
+Ansible ne Docker aur Kind install kar diya, ab usi playbook (`kind.yml`)
+ke through EC2 ke andar hi Kind ka use karke ek local Kubernetes cluster
+banaya gaya hai:
+
+```bash
+ansible-playbook -i hosts.yml kind.yml
+```
+
+Ye playbook:
+
+1. `kind.yaml` config file ko EC2 per copy karta hai
+2. Check karta hai ke `tws-cluster` naam ka cluster pehle se hai ya nahi
+3. Agar nahi hai to `kind create cluster --config=/tmp/kind.yaml` chalata hai
+4. Nodes ke Ready hone ka wait karta hai
+5. `kubectl get nodes -o wide` se cluster status dikhata hai
+
+Is stage ke baad EC2 instance ke andar ek fully working Kubernetes cluster
+ready hota hai (Kind = Kubernetes IN Docker).
+
+---
+
+## Stage 4 — Kubernetes Operations (App Deploy Karna)
+
+Ab jab cluster ready hai, to `k8s/` folder ke manifests use karke poori
+app deploy ki gayi hai:
+
+```
+k8s/
+├── namespace.yaml          # "dev" namespace banana
+├── pv.yaml                 # Persistent Volume (10Gi)
+├── pvc.yaml                # Persistent Volume Claim (4Gi)
+├── mongodb.yaml             # MongoDB StatefulSet
+├── mongo-service.yaml        # MongoDB headless service
+├── backend.yaml              # Backend Deployment (Node/Express)
+├── backend-service.yaml       # Backend NodePort service (30050)
+├── frontend.yaml               # Frontend Deployment (React + nginx)
+└── frontend-service.yaml        # Frontend NodePort service
+```
+
+### Kubectl Commands (EC2 per, SSH karke)
+
+```bash
+# EC2 per SSH karo (Terraform ki key se)
+ssh -i terrakey ubuntu@<EC2_PUBLIC_IP>
+
+# Namespace banao
 kubectl apply -f namespace.yaml
 
-kubectl apply -f mongo-deployment.yaml
-kubectl apply -f backend-deployment.yaml
-kubectl apply -f frontend-deployment.yaml
+# Storage setup
+kubectl apply -f pv.yaml
+kubectl apply -f pvc.yaml
 
+# Secrets banao (JWT_SECRET, MONGO_URI, SMTP creds, ADMIN_PASSWORD)
+kubectl create secret generic fitness-secret -n dev \
+  --from-literal=JWT_SECRET=<value> \
+  --from-literal=MONGO_URI=<value> \
+  --from-literal=SMTP_USER=<value> \
+  --from-literal=SMTP_PASS=<value> \
+  --from-literal=ADMIN_PASSWORD=<value>
+
+# Database deploy karo
+kubectl apply -f mongodb.yaml
 kubectl apply -f mongo-service.yaml
+
+# Backend deploy karo
+kubectl apply -f backend.yaml
 kubectl apply -f backend-service.yaml
+
+# Frontend deploy karo
+kubectl apply -f frontend.yaml
 kubectl apply -f frontend-service.yaml
 
-kubectl apply -f ingress.yaml
+# Status check karo
+kubectl get all -n dev
+kubectl get pods -n dev -w
+```
+
+App ke components:
+
+| Component | Type            | Namespace | Notes                          |
+|-----------|------------------|-----------|---------------------------------|
+| mongo     | StatefulSet      | dev       | 10Gi PVC, headless service      |
+| backend   | Deployment       | dev       | NodePort 30050, port 5000       |
+| frontend  | Deployment       | dev       | NodePort, port 80               |
+
+---
+
+## Poora Flow — Summary
+
+```
+Terraform (infra banao)
+      │  terraform init / plan / apply
+      ▼
+   AWS EC2 (Ubuntu) ready
+      │
+      ▼
+Ansible (usi EC2 ko configure karo)
+      │  ansible-playbook playbook.yml
+      ▼
+Docker + Kind + kubectl installed
+      │
+      ▼
+Kind (EC2 ke andar Kubernetes cluster banao)
+      │  ansible-playbook kind.yml
+      ▼
+Local K8s cluster (tws-cluster) ready
+      │
+      ▼
+kubectl apply -f k8s/  (Namespace → PV/PVC → Mongo → Backend → Frontend)
+      │
+      ▼
+App live on EC2 Public IP : NodePort
 ```
 
 ---
 
-# 📊 Verification Commands
+## Monitoring (Extra)
+
+Ansible playbooks se EC2 per monitoring bhi setup ki gayi hai:
+
+- **Node Exporter** — system metrics expose karta hai (port 9100)
+- **Prometheus** — metrics scrape/store karta hai (port 9090)
+- **Grafana** — dashboards ke liye
 
 ```bash
-kubectl get pods -n dev
-
-kubectl get svc -n dev
-
-kubectl get ingress -n dev
-
-kubectl get deployments -n dev
+ansible-playbook -i hosts.yml node_exporter.yml
+ansible-playbook -i hosts.yml prometheus.yml
+ansible-playbook -i hosts.yml grafana.yml
 ```
-
----
-
-# 🎯 DevOps Workflow
-
-```
-Developer
-     │
-     ▼
-GitHub Push
-     │
-     ▼
-GitHub Actions
-     │
-     ▼
-Build Docker Images
-     │
-     ▼
-Push Images to Docker Hub
-     │
-     ▼
-AWS EC2
-     │
-     ▼
-KIND Kubernetes Cluster
-     │
-     ▼
-Deploy MERN Application
-```
-
----
-
-# 📚 Skills Demonstrated
-
-* AWS Cloud
-* Terraform
-* Ansible
-* Docker
-* Docker Hub
-* GitHub Actions
-* Kubernetes
-* KIND
-* Kubernetes Secrets
-* ConfigMaps
-* Ingress
-* MERN Stack Deployment
-* Infrastructure as Code
-* Configuration Management
-* Continuous Integration
-* Continuous Deployment
-
----
-
-# 📌 Future Improvements
-
-* Deploy on Amazon EKS
-* Use AWS Application Load Balancer (ALB)
-* Route 53 Integration
-* TLS with Cert-Manager
-* Prometheus Monitoring
-* Grafana Dashboards
-* Horizontal Pod Autoscaler (HPA)
-* External Secrets with AWS Secrets Manager
-* Argo CD (GitOps)
-
----
-
-# 👨‍💻 Author
-
-**Muhammad Shahid**
-
-DevOps & Cloud Engineer
-
-GitHub: *Add your GitHub profile*
-
-LinkedIn: *Add your LinkedIn profile*
