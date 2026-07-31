@@ -31,7 +31,7 @@ export default function Login() {
   };
 
   return (
-    <AuthLayout title="Welcome back" subtitle="hello shahid and abdullah sir">
+    <AuthLayout title="Welcome back" subtitle="Login to Fitness">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Input
           label="Email"
