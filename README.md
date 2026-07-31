@@ -1,28 +1,39 @@
 # Pulse — Fitness Tracker (MERN Stack) — Deployment Guide
 
-Ye README isliye likha gaya hai taake pura deployment flow samajh aaye —
-pehle **Terraform** se AWS EC2 infra banaya, phir usi infra ko **Ansible**
-se configure kiya, phir EC2 per **Kind (Kubernetes in Docker)** install
-kiya, aur phir uss cluster per app ka **Kubernetes deployment** kiya.
+This README explains the full deployment flow — first **Terraform** was
+used to spin up AWS EC2 infrastructure, then that same infra was
+configured with **Ansible**, then **Kind (Kubernetes in Docker)** was
+installed on the EC2 instance, and finally the app was deployed to that
+cluster using **Kubernetes operations**.
 
 ---
 
 ## Project Overview
 
-Pulse ek full-stack fitness tracking app hai (MongoDB + Express + React +
-Node). Iska deployment 4 stages mein hota hai:
+Pulse is a full-stack fitness tracking app (MongoDB + Express + React +
+Node). Its deployment happens in 4 stages:
 
-1. Terraform → Infra (EC2 instance) banana
-2. Ansible → Uss EC2 ko configure karna (Docker, Kind, kubectl install)
-3. Kind → EC2 ke andar hi ek Kubernetes cluster banana
-4. Kubectl (K8s manifests) → App ko cluster per deploy karna + monitoring setup
+1. Terraform → Provision infrastructure (EC2 instance)
+2. Ansible → Configure that EC2 (install Docker, Kind, kubectl)
+3. Kind → Create a Kubernetes cluster inside the EC2 instance
+4. Kubectl (K8s manifests) → Deploy the app to the cluster + set up monitoring
 
 ---
 
-## Stage 1 — Terraform se Infra Banana
+## Screenshot
 
-Sab se pehle Terraform ka use karke AWS per infra (EC2 instance + security
-group + key pair) throw kiya gaya hai. Ye sab `terraform/` folder mein hai:
+![Fitness Tracker Dashboard](screenshot.png)
+
+*(Replace the link above with your own deployment/dashboard screenshot,
+e.g. `./screenshots/dashboard.png`, once you capture one from the running app.)*
+
+---
+
+## Stage 1 — Provisioning Infrastructure with Terraform
+
+First, Terraform was used to provision infrastructure on AWS (EC2
+instance + security group + key pair). All of this lives in the
+`terraform/` folder:
 
 ```
 terraform/
@@ -31,140 +42,139 @@ terraform/
 └── outputs.tf       # EC2 public/private IP output
 ```
 
-`ec2.tf` mein ye resources define hain:
+`ec2.tf` defines these resources:
 
-- `aws_default_vpc` — default VPC use hoti hai
-- `aws_key_pair` — SSH key (`terrakey.pub`) EC2 per attach hoti hai
-- `aws_security_group` — sirf SSH (port 22) allow hai
-- `aws_instance` — `t3.xlarge` instance, 20GB gp3 root volume
+- `aws_default_vpc` — uses the default VPC
+- `aws_key_pair` — attaches the SSH key (`terrakey.pub`) to the EC2 instance
+- `aws_security_group` — only allows SSH (port 22)
+- `aws_instance` — a `t3.xlarge` instance with a 20GB gp3 root volume
 
 ### Terraform Commands
 
 ```bash
 cd terraform
 
-# Terraform ko initialize karna (provider download karega)
+# Initialize Terraform (downloads the provider)
 terraform init
 
-# Pehle dekh lo kya banega
+# Preview what will be created
 terraform plan
 
-# Ab actual infra create karo
+# Actually create the infrastructure
 terraform apply -auto-approve
 
-# Output mein EC2 ka public IP milega
+# Get the EC2 public IP from the output
 terraform output
 ```
 
-Iske baad AWS per ek EC2 instance ready ho jata hai jisko hum next stage
-mein configure karenge.
+After this step, an EC2 instance is up and running on AWS, ready to be
+configured in the next stage.
 
 ---
 
-## Stage 2 — Ansible se Infra Configure Karna
+## Stage 2 — Configuring the Infra with Ansible
 
-Terraform se jo EC2 bana, usi ko ab **Ansible** ke through configure kiya
-gaya hai. Sab kuch `ansible/` folder mein hai:
+The EC2 instance provisioned by Terraform was then configured using
+**Ansible**. Everything lives in the `ansible/` folder:
 
 ```
 ansible/
 ├── ansible.conf        # inventory + SSH key config
-├── hosts.yml            # EC2 ka IP + SSH user (ubuntu)
-├── playbook.yml         # Docker, Kind, kubectl install
-├── kind.yml              # Kind cluster create karna
-├── create-kind.yml       # Kind config file copy karna
-├── node_exporter.yml     # Monitoring: Node Exporter install
-├── prometheus.yml        # Monitoring: Prometheus install
-└── grafana.yml           # Monitoring: Grafana install
+├── hosts.yml             # EC2 IP + SSH user (ubuntu)
+├── playbook.yml           # Installs Docker, Kind, kubectl
+├── kind.yml                # Creates the Kind cluster
+├── create-kind.yml          # Copies the Kind config file
+├── node_exporter.yml         # Monitoring: installs Node Exporter
+├── prometheus.yml             # Monitoring: installs Prometheus
+└── grafana.yml                  # Monitoring: installs Grafana
 ```
 
-`hosts.yml` mein Terraform wala EC2 public IP daala jata hai, aur
-`terrakey` (Terraform se banai gayi SSH key) use hoti hai connect karne ke
-liye.
+`hosts.yml` contains the EC2 public IP (from Terraform's output), and
+uses `terrakey` (the SSH key Terraform generated) to connect.
 
 ### Ansible Commands
 
 ```bash
 cd ansible
 
-# Connectivity test
+# Test connectivity
 ansible -i hosts.yml all -m ping
 
-# Docker + Kind + kubectl install karna EC2 per
+# Install Docker + Kind + kubectl on the EC2 instance
 ansible-playbook -i hosts.yml playbook.yml
 
-# Monitoring stack install karna (optional)
+# Install the monitoring stack (optional)
 ansible-playbook -i hosts.yml node_exporter.yml
 ansible-playbook -i hosts.yml prometheus.yml
 ansible-playbook -i hosts.yml grafana.yml
 ```
 
-`playbook.yml` ye kaam karta hai:
+`playbook.yml` does the following:
 
-- apt cache update
-- Docker install + start + `ubuntu` user ko docker group mein add
-- System architecture detect karna (amd64/arm64)
-- Kind binary download karna (`/usr/local/bin/kind`)
-- Latest kubectl download karna (`/usr/local/bin/kubectl`)
-- Docker, Kind, kubectl versions verify karna
+- Updates the apt cache
+- Installs Docker, starts it, and adds the `ubuntu` user to the docker group
+- Detects the system architecture (amd64/arm64)
+- Downloads the Kind binary (`/usr/local/bin/kind`)
+- Downloads the latest kubectl (`/usr/local/bin/kubectl`)
+- Verifies Docker, Kind, and kubectl versions
 
 ---
 
-## Stage 3 — Kind Se Kubernetes Install Karna (EC2 Per)
+## Stage 3 — Installing Kubernetes with Kind (on EC2)
 
-Ansible ne Docker aur Kind install kar diya, ab usi playbook (`kind.yml`)
-ke through EC2 ke andar hi Kind ka use karke ek local Kubernetes cluster
-banaya gaya hai:
+Once Ansible installed Docker and Kind, the same Ansible flow
+(`kind.yml`) was used to create a local Kubernetes cluster inside the
+EC2 instance:
 
 ```bash
 ansible-playbook -i hosts.yml kind.yml
 ```
 
-Ye playbook:
+This playbook:
 
-1. `kind.yaml` config file ko EC2 per copy karta hai
-2. Check karta hai ke `tws-cluster` naam ka cluster pehle se hai ya nahi
-3. Agar nahi hai to `kind create cluster --config=/tmp/kind.yaml` chalata hai
-4. Nodes ke Ready hone ka wait karta hai
-5. `kubectl get nodes -o wide` se cluster status dikhata hai
+1. Copies the `kind.yaml` config file to the EC2 instance
+2. Checks whether a cluster named `tws-cluster` already exists
+3. If not, runs `kind create cluster --config=/tmp/kind.yaml`
+4. Waits for the nodes to become Ready
+5. Runs `kubectl get nodes -o wide` to show the cluster status
 
-Is stage ke baad EC2 instance ke andar ek fully working Kubernetes cluster
-ready hota hai (Kind = Kubernetes IN Docker).
+After this stage, the EC2 instance has a fully working Kubernetes
+cluster running inside it (Kind = Kubernetes IN Docker).
 
 ---
 
-## Stage 4 — Kubernetes Operations (App Deploy Karna)
+## Stage 4 — Kubernetes Operations (Deploying the App)
 
-Ab jab cluster ready hai, to `k8s/` folder ke manifests use karke poori
-app deploy ki gayi hai:
+With the cluster ready, the app was deployed using the manifests in the
+`k8s/` folder:
 
 ```
 k8s/
-├── namespace.yaml          # "dev" namespace banana
-├── pv.yaml                 # Persistent Volume (10Gi)
-├── pvc.yaml                # Persistent Volume Claim (4Gi)
-├── mongodb.yaml             # MongoDB StatefulSet
-├── mongo-service.yaml        # MongoDB headless service
-├── backend.yaml              # Backend Deployment (Node/Express)
-├── backend-service.yaml       # Backend NodePort service (30050)
-├── frontend.yaml               # Frontend Deployment (React + nginx)
-└── frontend-service.yaml        # Frontend NodePort service
+├── namespace.yaml          # Creates the "dev" namespace
+├── pv.yaml                  # Persistent Volume (10Gi)
+├── pvc.yaml                  # Persistent Volume Claim (4Gi)
+├── mongodb.yaml                # MongoDB StatefulSet
+├── mongo-service.yaml            # MongoDB headless service
+├── backend.yaml                    # Backend Deployment (Node/Express)
+├── backend-service.yaml              # Backend NodePort service (30050)
+├── frontend.yaml                       # Frontend Deployment (React + nginx)
+└── frontend-service.yaml                 # Frontend NodePort service
 ```
 
-### Kubectl Commands (EC2 per, SSH karke)
+### Kubectl Commands (on EC2, via SSH)
 
 ```bash
-# EC2 per SSH karo (Terraform ki key se)
+# SSH into the EC2 instance (using the Terraform key)
 ssh -i terrakey ubuntu@<EC2_PUBLIC_IP>
 
-# Namespace banao
+# Create the namespace
 kubectl apply -f namespace.yaml
 
-# Storage setup
+# Set up storage
 kubectl apply -f pv.yaml
 kubectl apply -f pvc.yaml
 
-# Secrets banao (JWT_SECRET, MONGO_URI, SMTP creds, ADMIN_PASSWORD)
+# Create the secrets (JWT_SECRET, MONGO_URI, SMTP creds, ADMIN_PASSWORD)
 kubectl create secret generic fitness-secret -n dev \
   --from-literal=JWT_SECRET=<value> \
   --from-literal=MONGO_URI=<value> \
@@ -172,24 +182,24 @@ kubectl create secret generic fitness-secret -n dev \
   --from-literal=SMTP_PASS=<value> \
   --from-literal=ADMIN_PASSWORD=<value>
 
-# Database deploy karo
+# Deploy the database
 kubectl apply -f mongodb.yaml
 kubectl apply -f mongo-service.yaml
 
-# Backend deploy karo
+# Deploy the backend
 kubectl apply -f backend.yaml
 kubectl apply -f backend-service.yaml
 
-# Frontend deploy karo
+# Deploy the frontend
 kubectl apply -f frontend.yaml
 kubectl apply -f frontend-service.yaml
 
-# Status check karo
+# Check the status
 kubectl get all -n dev
 kubectl get pods -n dev -w
 ```
 
-App ke components:
+App components:
 
 | Component | Type            | Namespace | Notes                          |
 |-----------|------------------|-----------|---------------------------------|
@@ -199,22 +209,22 @@ App ke components:
 
 ---
 
-## Poora Flow — Summary
+## Full Flow — Summary
 
 ```
-Terraform (infra banao)
+Terraform (provision infra)
       │  terraform init / plan / apply
       ▼
    AWS EC2 (Ubuntu) ready
       │
       ▼
-Ansible (usi EC2 ko configure karo)
+Ansible (configure that EC2)
       │  ansible-playbook playbook.yml
       ▼
 Docker + Kind + kubectl installed
       │
       ▼
-Kind (EC2 ke andar Kubernetes cluster banao)
+Kind (create Kubernetes cluster inside EC2)
       │  ansible-playbook kind.yml
       ▼
 Local K8s cluster (tws-cluster) ready
@@ -230,11 +240,12 @@ App live on EC2 Public IP : NodePort
 
 ## Monitoring (Extra)
 
-Ansible playbooks se EC2 per monitoring bhi setup ki gayi hai:
+Ansible playbooks were also used to set up monitoring on the EC2
+instance:
 
-- **Node Exporter** — system metrics expose karta hai (port 9100)
-- **Prometheus** — metrics scrape/store karta hai (port 9090)
-- **Grafana** — dashboards ke liye
+- **Node Exporter** — exposes system metrics (port 9100)
+- **Prometheus** — scrapes/stores metrics (port 9090)
+- **Grafana** — for dashboards
 
 ```bash
 ansible-playbook -i hosts.yml node_exporter.yml
